@@ -1,8 +1,9 @@
+#include <Arduino.h>
 #include <TM1637Display.h>
 #include "hora.h"
 
-#define CLK A0
-#define DIO 9
+#define CLK 23
+#define DIO 22
 
   Reloj::Reloj(int hora, int minutos) : display(CLK, DIO) {
     //display.setBrightness(0x0f);
@@ -35,6 +36,8 @@
   void Reloj::update_value() {
     if (Serial.available() > 0) {
       Serial.readBytes(input, 10);
+      Serial.print("\nValor Actualizado");
+      Serial.println(input);
       for (int i = 0; i < 2; i++) {
         hrs = hrs * 10;
         hrs += ((int) input[i]) - 48;
@@ -44,21 +47,13 @@
         min += ((int) input[i]) - 48;
       }
       this -> setHora(hrs, min);
+      this->show();
     }
 
   }
   void Reloj::show() {
     display.showNumberDecEx(this -> obtenerHora(), 0b11100000, false, 4, 0);
   }
-
-void setup(){
-  auto r = Reloj(21,19);
-  r.show();
-  
-}
-void loop(){
-  
-}
 
 //auto r = Reloj(16, 02);
 

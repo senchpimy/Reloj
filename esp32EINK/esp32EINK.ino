@@ -11,7 +11,7 @@ HTTPClient http;
 #include "arduino_secrets.h"
 #include <ArduinoJson.h>
 #include "font.h"
-#include <TM1637Display.h>
+#include "hora.h"
 
 UBYTE * BlackImage;
 const int ALTO = 448;
@@ -23,9 +23,6 @@ const int DESFACE = 25;
 const int WIDTH = ALTO / (NUM_L_W + 1);
 const int SCALE_F = 10000;
 const int HEIGHT = ANCHO / (NUM_L_H);
-
-#define CLK  23 
-#define DIO  22
 
 int charToValue(char w);
 void prepare_display();
@@ -275,7 +272,7 @@ class GUI {
 
 auto gui = new GUI();
 
-void setup() {
+void no_setup() {
   //get_val_of_date("This is a char*",233);
   Serial.begin(115200);
   //float eth[]={1682.50, 1675.500000, 1664.199951, 1628.500000, 1598.500000, 1588.599976, 1581.199951, 1591.900024, 1593.099976, 1593.099976, 1601.699951, 1631.900024, 1642.300049, 1639.400024, 1628.000000, 1638.099976, 1627.400024, 1624.699951, 1598.500000, 1587.599976, 1585.400024, 1623.199951, 1634.199951, 1637.300049, 1634.900024, 1630.099976, 1628.199951, 1632.699951, 1635.199951, 1633.699951};
@@ -286,6 +283,7 @@ void setup() {
   //gui -> init();
   /*connect();
   char* holder =(char *) malloc(sizeof(char)*2700);//
+  
   int price_count = 200;
   auto f = Fecha(&http);
   f.fill_data();
@@ -295,18 +293,9 @@ void setup() {
   char * name="eth";
   p.gen_precios(name,f.dates,holder,price_count,&http);
   p.print_values();*/
-  TM1637Display display = TM1637Display(CLK, DIO);
- display.clear();
-  display.setBrightness(5); 
-    display.showNumberDec(-91);             // displayed _-91
-      delay(4000);
-
-    //  display.showNumberDecEx(1530, 0b11100000, false, 4, 0);
-    Serial.println("\nVALOR");
-  delay(4000);
-  //display.clear();
 //  f.print_dates();
-
+  Reloj r(21,0);
+  r.show();
   //gui -> draw_graph( & data);
   /*int price_count = 0;
   int time_count = 0;
@@ -319,8 +308,18 @@ void setup() {
   //free(BlackImage);
   //BlackImage = NULL;
 }
+auto r = Reloj(21,24);
+void setup(){
+  Serial.begin(115200);
+  Serial.println("\nListo");
+  r.show();
+  Serial.println("\nListo");
+}
 
-void loop() {}
+void loop() {
+  r.update_value();
+  delay(500);
+  }
 
 void show_buffer() {
   EPD_5IN65F_Display(BlackImage);
