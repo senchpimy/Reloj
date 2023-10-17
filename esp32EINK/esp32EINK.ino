@@ -6,12 +6,24 @@ HTTPClient http;
 #include "hora.h"
 #include "gui_utils.h"
 
-
 auto gui = new GUI();
+long lastMillis;
+auto r = new Reloj(12,0);
 void loop(){}
 void setup() {
-  //get_val_of_date("This is a char*",233);
-  Serial.begin(115200);
+    Serial.begin(115200);
+  TaskHandle_t Task1;
+  xTaskCreatePinnedToCore(
+     relojLoop, /* Function to implement the task */
+     "Reloj", /* Name of the task */
+     10000,  /* Stack size in words */
+     NULL,  /* Task input parameter */
+     tskIDLE_PRIORITY,  /* Priority of the task */
+     &Task1,  /* Task handle. */
+     0); /* Core where the task should run */
+
+    Serial.print("\nRUNNIN ON ANOTHER CORE: ");
+  Serial.println(xPortGetCoreID());
   float eth[]={1682.50, 1675.500000, 1664.199951, 1628.500000, 1598.500000, 1588.599976, 1581.199951, 1591.900024, 1593.099976, 1593.099976, 1601.699951, 1631.900024, 1642.300049, 1639.400024, 1628.000000, 1638.099976, 1627.400024, 1624.699951, 1598.500000, 1587.599976, 1585.400024, 1623.199951, 1634.199951, 1637.300049, 1634.900024, 1630.099976, 1628.199951, 1632.699951, 1635.199951, 1633.699951};
   float xmr[] = {147.320007,146.330002,145.630005,146.500000,145.259995,144.289993,144.250000,143.070007,143.820007,145.740005,146.970001,147.350006,147.289993,146.479996,144.699997,145.740005,147.610001,144.850006,143.110001,141.229996,141.149994,142.820007,143.279999,143.080002,142.320007,139.380005,139.919998,142.029999,140.399994,140.520004  };
   float doge[]={0.062352, 0.062069, 0.061790, 0.060970, 0.060636, 0.060714, 0.060868, 0.061460, 0.061598, 0.061542, 0.062031, 0.062409, 0.062514, 0.061968, 0.061981, 0.062320, 0.062033, 0.061655, 0.061105, 0.061243, 0.060733, 0.061960, 0.063527, 0.063335, 0.063335, 0.063757, 0.063732, 0.063178, 0.063383, 0.063549};
@@ -20,30 +32,28 @@ void setup() {
   datos[0] = Data("doge", doge);
   datos[1] = Data("eth", eth);
   datos[2] = Data("xmr", xmr);
+
   gui -> init(3);
   for (int i =0; i<4; i++){
     gui->progress(i);
     delay(2000);  
-      }
-      //Limpiar pantalla
-Paint_Clear(EPD_5IN65F_WHITE);
-  int i =0;
-long lastMillis;
-  while(1){
-      if (millis() - lastMillis >= 2*60*1000UL) //cada minuto
-      {
-   lastMillis = millis();
-   
-    Paint_Clear(EPD_5IN65F_WHITE);
-     gui->draw_graph(&datos[i]);  
-      i++;
-        if (i==3){i=0;}
-   //r.aumentarMinuto();
-    }
-
   }
-  
-  
+      //Limpiar pantalla
+  Paint_Clear(EPD_5IN65F_WHITE);
+   int i =0;
+   int hora=0;
+  while(1){
+    //if (nueva hora)
+    if (hora!=(r->obtenerHora()/100))
+      {
+        hora = r->obtenerHora()/100;
+        Paint_Clear(EPD_5IN65F_WHITE);
+        gui->draw_graph(&datos[i]);  
+        i++;
+        if (i==3){i=0;}
+    }
+    //Actualizar reloj
+  }
   
   /*connect();
   char* holder =(char *) malloc(sizeof(char)*2000);//
@@ -72,7 +82,7 @@ long lastMillis;
   //free(BlackImage);
   //BlackImage = NULL;
 }
-auto r = Reloj(21,24);
+//auto r = Reloj(21,24);
 /*
 void setup(){
   Serial.begin(115200);
@@ -85,6 +95,34 @@ void loop() {
   r.update_value();
   delay(500);
   }*/
+
+void relojLoop( void * parameters) {
+  delay(500);
+ //  return;
+  Serial.print("RUNNIN ON ANOTHER CORE");
+  Serial.println(xPortGetCoreID());
+ 
+  bool parpa=true;
+  
+  for(;;) {
+    if (parpa){
+      r->apagar();
+      parpa=false;
+    }
+    else{
+     r->show();
+      parpa=true;
+    }
+  //r->show();
+  if (millis() - lastMillis >= 60*1000UL) //cada minuto
+     {
+      lastMillis=millis();
+      r->aumentarMinuto();
+    }
+    delay(500);
+  }
+  
+}
 
 inline void connect(){
   WiFi.begin(SECRET_SSID, SECRET_PASS);

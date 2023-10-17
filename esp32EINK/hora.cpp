@@ -26,7 +26,7 @@
     hora %= 24; // Asegurarse de que la hora esté en formato de 24 horas
   }
 
-  inline int Reloj::obtenerHora() {
+  int Reloj::obtenerHora() {
     return (hora * 100) + minutos;
   }
   void Reloj::setHora(int hora, int min) {
@@ -53,6 +53,9 @@
   }
   void Reloj::show() {
     display.showNumberDecEx(this -> obtenerHora(), 0b11100000, false, 4, 0);
+  }
+  void Reloj::apagar(){
+   display.clear();
   }
 
 //auto r = Reloj(16, 02);

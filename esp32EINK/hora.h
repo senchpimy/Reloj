@@ -17,11 +17,11 @@ private:
 public:
   Reloj(int hora, int minutos);
   void aumentarMinuto();
-  inline int obtenerHora();
+  int obtenerHora();
   void setHora(int hora, int min);
   void update_value();
   void show();
+  void apagar();
 };
 
 #endif // RELOJ_H
-
