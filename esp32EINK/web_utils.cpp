@@ -3,24 +3,21 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+//#include <String.h>
 const int DATE_STRING_SIZE=11;
 //const char date_server[] = "worldclockapi.com";
 //const char date_path[] = "/api/json/utc/now";
-char *date_server = "http://worldclockapi.com/api/json/utc/now";
-
-
+//char *date_server = "http://worldclockapi.com/api/json/utc/now";
+char *date_server = "http://www.whattimeisit.com/";
 //const char* date_server = "http://worldtimeapi.org/api/timezone/America/Mexico_City";
 
 
 float get_val_of_date(char * price, int price_count){
-  Serial.printf("1\n");
   char *important = nullptr; // Initialize the pointer to nullptr
   int number_newlines=6;
-  Serial.printf("2\n");
+  Serial.println("A1");
   for (int i = price_count;i>0;i--){
-    Serial.println("AAA");
     if (price[i]=='\n'){
-      Serial.println("boorado");
       number_newlines--;
     }
     if (number_newlines==0){
@@ -28,14 +25,12 @@ float get_val_of_date(char * price, int price_count){
       break;
     }
   }
-  Serial.printf("3:%s:\n",important);
-
+Serial.println("A2");
   for (int i = 0;i<200;i++){
    // Serial.println(i);
     if (important[i]=='a' && important[i+1]=='v'&& important[i+2]=='g'){
       important=&important[i+10];
       for (int j =0; j<20;j++){
-       Serial.println("encontrado");
         if (important[j]==' '){
           important[j]='\0';
           break;
@@ -44,16 +39,58 @@ float get_val_of_date(char * price, int price_count){
       break;
     }
   }
-  Serial.printf("4\n");
-
+Serial.println("A3");
   return atof(important);
 }
 
 Fecha::Fecha(HTTPClient* http){
-    StaticJsonDocument<4000> json;
-    http->setUserAgent("curl");
     http->begin(date_server);
-    
+        int httpResponseCode = http->GET();
+          if (httpResponseCode>0) {
+        Serial.print("HTTP Response code: ");
+        Serial.println(httpResponseCode);
+        String content = http->getString();
+                
+        int start = content.indexOf("(UTC)");
+        int mid = content.indexOf("</td>",start);
+        int d = content.indexOf('>',mid);
+        char * c_str=(char *) content.c_str();
+        c_str=&c_str[d+35]; //Magic numbers cause I dont want to parse html
+        c_str[8]='\0'; //Magic numbers cause I dont want to parse html
+        Serial.printf("String date:%s:\n", c_str);
+        original_date=c_str;
+
+      }
+      else {
+        Serial.print("Impossible to get date; Error code: ");
+        Serial.println(httpResponseCode);
+        original_date="10/18/23";
+      }
+      http->end();
+}
+
+void Fecha::fill_data_v2(){ //"currentDateTime" from the api
+  int ind = 0;
+  char* month=original_date;
+  while(true){if (original_date[ind]=='/'){ break; }ind++;}
+  month[ind]='\0';
+  char* day = &original_date[ind+1];
+  ind = 0;
+  while(true){if (day[ind]=='/'){break;}ind++;}
+  day[ind]='\0';
+  char* year= &day[ind+1];
+  this->day   = atoi(day);
+  this->month = atoi(month);
+  this->year  = atoi(year)+2000;
+  this->dates_ptr=0;
+  this->dates = (char *) malloc(sizeof(char)*(DATE_STRING_SIZE*33));
+  Serial.printf("AÑO: %i; MES: %i; DIA: %i\n", this->year, this->month, this->day);
+ }
+
+/*void deprecated_get(HTTPClient* http){ //Drepecated
+    StaticJsonDocument<4000> json;
+    http->begin(date_server);
+         
     int httpResponseCode = http->GET();
       
       if (httpResponseCode>0) {
@@ -64,36 +101,36 @@ Fecha::Fecha(HTTPClient* http){
         if (error) {
           Serial.print(F("deserializeJson() failed: "));
           Serial.println(error.f_str());
+          original_date="2023-10-18T12:37Z";
           return;
         }
         const char * original_d=json["currentDateTime"]; // Subject to hcange
         original_date = (char *) malloc(sizeof(char)*35); // subject to change
         strcpy(original_date, original_d);
         Serial.printf("%s",original_date);
+       
         //serializeJsonPretty(json, Serial);
       }
       else {
-        Serial.print("Error code: ");
+        Serial.print("Impossible to get date; Error code: ");
         Serial.println(httpResponseCode);
+        original_date="2023-10-18T12:37Z";
       }
 //      delete json;
-      free(original_date);
+      //free(original_date); // Unesesary free?
       // Free resources
       http->end();
-  }
+  }*/
 
- //void Fecha::fill_data(char* str){ //"currentDateTime" from the api
  void Fecha::fill_data(){ //"currentDateTime" from the api
   int ind = 0;
   while(true){if (original_date[ind]=='T'){break;}ind++;}
   original_date[ind]='\0';
-
   char* year=original_date;
   ind = 0;
   while(true){if (original_date[ind]=='-'){ break; }ind++;}
   year[ind]='\0';
   char* month = &original_date[ind+1];
-
   ind = 0;
   while(true){if (month[ind]=='-'){break;}ind++;}
   month[ind]='\0';
@@ -159,7 +196,7 @@ Prices::Prices(){
 
 void Prices::gen_precios(char* name, char* dates, char* price, int& price_count, HTTPClient* http){
 
-  char web []= "http://rate.sx/"; //TODO
+  char web []= "http://rate.sx/";
   char *whole=new char[40];
   for (int i = 0; i<31;i++){
     price_count=0;
@@ -175,10 +212,9 @@ void Prices::gen_precios(char* name, char* dates, char* price, int& price_count,
       Serial.println(httpResponseCode);
       //return;
     }
-
-    //Serial.printf("%i\n",http->getSize());
+    Serial.printf("Parsing Input #%i\n",i);
     this->precios[i]=get_val_of_date((char *)http->getString().c_str(), http->getSize());
-    Serial.printf("RECOLLECION TERMINADA: %s\n", http->getString());
+    Serial.printf("RECOLLECION TERMINADA; ELEMENTO %i; CRYPTO:%s\n", i, name);
     http->end();
   }
   

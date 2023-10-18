@@ -1,4 +1,5 @@
 #include <HTTPClient.h>
+#include <time.h>
 
 float get_val_of_date(char* price, int price_count);
 #pragma once
@@ -13,8 +14,9 @@ class Fecha
     char* original_date;
 
     Fecha(HTTPClient* http);
-
     void fill_data();
+    void fill_data_v2();
+
 
     void gen_dates();
 
