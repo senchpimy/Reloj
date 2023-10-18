@@ -24,12 +24,6 @@ void draw_grid();
 void show_buffer();
 int round_to(float number);
 
-/*class GraphCoordGen {
-  private: float coord_min;
-  float paso;
-  float val_min;
-
-  public:GraphCoordGen(float val_max, float val_min, float coord_max, float coord_min) {*/
   GraphCoordGen::GraphCoordGen(float val_max, float val_min, float coord_max, float coord_min) {
     float dif_uni = val_max - val_min;
     float dif_coord = coord_max - coord_min;
@@ -41,19 +35,11 @@ int round_to(float number);
 
   int GraphCoordGen::form_pen(float y) {
     float dis_y = y - this -> val_min;
-    float pasos_tot = dis_y * this -> paso;
+    float pasos_tot = dis_y * this -> paso; //TODO
     return (int)
       (this -> coord_min + pasos_tot);
   }
-//};
 
-/*class Font {
-  public: const unsigned char * data;
-  int largo_total;
-  int altura;
-  int ancho;
-
-  void draw_char(char w, int x, int y) {*/
   void Font::draw_char(char w, int x, int y) {
     int letra = charToValue(w);
     if (letra == -1) {
@@ -76,8 +62,10 @@ int round_to(float number);
           int X = (col - ini) + x;
           int Y = row + y;
 
-          int X0 = ANCHO - Y - 1;
-          int Y0 = X;
+          /*int X0 = ANCHO - Y - 1;
+          int Y0 = X; //TODO*/
+          int X0 = Y;
+          int Y0 = ALTO-X-1; //TODO
           Paint_DrawPoint(X0, Y0, BLACK, DOT_PIXEL_1X1, DOT_STYLE_DFT);
         }
       }
@@ -91,21 +79,17 @@ int round_to(float number);
       index++;
     }
   }
-//};
 
-/*class BigFont: public Font {
-  public: BigFont() {*/
   BigFont::BigFont() {
     data = fuente_grande;
     altura = 60;
     largo_total = 1520;
     ancho = 40;
   }
-//};
 
-/*class SmallFont: public Font { // For some reason the code for the big font it didnt work with the small font even tho
-  // I did exact same method to get the bitmap, I had to map it to 2 bytes per pixel
-  public: SmallFont() {*/
+ // For some reason the code for the big font it didnt work with the small font even tho
+ // I did exact same method to get the bitmap, I had to map it to 2 bytes per pixel
+  
   SmallFont::SmallFont() {
     data = fuente_small;
     altura = 28;
@@ -132,34 +116,29 @@ int round_to(float number);
     for (int row = 0; row < altura; row++) {
       for (int col = ini; col < fin; col++) {
         int bitPosition = (row * largo_total) + col;
-        /* I couldnt get this part to work with the small font
-         int byteIndex = bitPosition / 8;
-         int bitIndex = bitPosition % 8;
-        bool bitValue = (data[byteIndex] >> (7 - bitIndex)) & 1;*/
         if (!data[bitPosition]) {
           int X = (col - ini) + x;
           int Y = row + y;
 
-          int X0 = ANCHO - Y - 1;
-          int Y0 = X;
+          /*int X0 = ANCHO - Y - 1;
+          int Y0 = X; //TODO*/
+          int X0 = Y;
+          int Y0 = ALTO-X-1;
           Paint_DrawPoint(X0, Y0, BLACK, DOT_PIXEL_1X1, DOT_STYLE_DFT);
         }
       }
     }
   }
-//};
 
-/*class Transform {
-  public: int x0;
-  int y0;
-  int x1;
-  int y1;
-  void tt(int X0, int Y0, int X1, int Y1) {*/
   void Transform::tt(int X0, int Y0, int X1, int Y1) {
-    this -> x0 = ANCHO - Y0 - 1;
-    this -> y0 = X0;
+    /*this -> x0 = ANCHO - Y0 - 1;
+    this -> y0 = X0; //TODO
     this -> x1 = ANCHO - Y1 - 1;
-    this -> y1 = X1;
+    this -> y1 = X1; //TODO*/
+    this -> x0 = Y0;
+    this -> y0 =ALTO-X0-1; //TODO
+    this -> x1 = Y1;
+    this -> y1 =ALTO-X1-1; //TODO
 
   }
   void Transform::mostrar_valores() {
@@ -227,14 +206,6 @@ int round_to(float number){
     return (int)(number / 5) * 5;
 }
 
-/*class Data {
-  public: char * nombre;
-  float max_v;
-  float min_v;
-  float * lista;
-  char * string_float_repr;
-  boolean scaled;
-  Data(char * nombre, float * lista) {*/
   Data::Data(char * nombre, float * lista) {
     //  lista=(double*)malloc(sizeof(double)*NUM_DIAS);
     this -> nombre = nombre;
@@ -306,14 +277,11 @@ int round_to(float number){
       Paint_DrawLine(t -> x0, t -> y0, t -> x1, t -> y1, EPD_5IN65F_RED, DOT_PIXEL_3X3, LINE_STYLE_SOLID);
       x0 = x1;
       y0 = y1;
-      y1 = obj.form_pen(this -> lista[i]);
+      y1 = obj.form_pen(this -> lista[i]); // Posible bug?
       x1 = 46 + (paso * i);
     }
   }
-//};
-
-/*class GUI {
-  public: void init() {*/
+ 
   void  GUI::init(int coins) {
     this->numberCoins=coins;
     prepare_display();

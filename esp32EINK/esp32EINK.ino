@@ -97,29 +97,48 @@ void loop() {
   }*/
 
 void relojLoop( void * parameters) {
-  delay(500);
- //  return;
   Serial.print("RUNNIN ON ANOTHER CORE");
   Serial.println(xPortGetCoreID());
- 
+  int buttonState = 0; 
   bool parpa=true;
+  bool parpadear=true;
+  bool updateDatos=true;
   
-  for(;;) {
-    if (parpa){
-      r->apagar();
-      parpa=false;
+  while(true) {
+    if (r->obtenerHora()==2358 && updateDatos){
+      //Obtener nuevos datos
+      updateDatos=false;
     }
-    else{
-     r->show();
-      parpa=true;
+    if (r->obtenerHora()==2359){
+      updateDatos=true;
     }
-  //r->show();
+    
+    if (parpadear){
+      if (parpa){
+        r->apagar();
+        parpa=false;
+      }
+      else{
+        r->show();
+        parpa=true;
+      }
+    }
   if (millis() - lastMillis >= 60*1000UL) //cada minuto
      {
       lastMillis=millis();
       r->aumentarMinuto();
     }
-    delay(500);
+    //delay(100);
+    if (digitalRead(2)){
+      r->aumentarMinuto();
+      parpadear=false;
+    }
+    if (digitalRead(4)){
+      r->reducirMinuto();
+      parpadear=false;
+    }
+    r->show();
+    delay(100);
   }
   
 }

@@ -17,6 +17,7 @@ private:
 public:
   Reloj(int hora, int minutos);
   void aumentarMinuto();
+  void reducirMinuto();
   int obtenerHora();
   void setHora(int hora, int min);
   void update_value();

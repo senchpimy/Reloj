@@ -26,6 +26,19 @@
     hora %= 24; // Asegurarse de que la hora esté en formato de 24 horas
   }
 
+  void Reloj::reducirMinuto() {
+    if (minutos > 0) {
+        minutos -= 1;
+    } else {
+        minutos = 59; 
+        if (hora > 0) {
+            hora -= 1;
+        } else {
+            hora = 23;
+        }
+    }
+}
+
   int Reloj::obtenerHora() {
     return (hora * 100) + minutos;
   }
