@@ -3,13 +3,15 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-//#include <String.h>
+#include "arduino_secrets.h"
+
 const int DATE_STRING_SIZE=11;
 //const char date_server[] = "worldclockapi.com";
 //const char date_path[] = "/api/json/utc/now";
 //char *date_server = "http://worldclockapi.com/api/json/utc/now";
-char *date_server = "http://www.whattimeisit.com/";
 //const char* date_server = "http://worldtimeapi.org/api/timezone/America/Mexico_City";
+char *date_server = "http://www.whattimeisit.com/";
+
 
 
 float get_val_of_date(char * price, int price_count){
@@ -190,18 +192,103 @@ void Fecha::print_dates(){
   }
 }
 
+#include <WiFiClientSecure.h>
+
 Prices::Prices(){
   this->precios=(float *) malloc(sizeof(float)*30);
 }
+void Prices::gen_precios_v2(char* name, char* api_key,  HTTPClient* http){
+  //char web []= "https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=30";
+ /* char web []= "https://min-api.cryptocompare.com/data/v2/histoday?fsym=";//BTC&tsym=USD&limit=30";
+  char whole[150];
 
-void Prices::gen_precios(char* name, char* dates, char* price, int& price_count, HTTPClient* http){
+    sprintf(whole, "GET %s%s&tsym=USD&limit=3 HTTP/1.1\r\n",web,name);
+    Serial.printf("STRING:%s\n",whole);
+     WiFiClientSecure client;
+     
+  if (!client.connect(whole, 443)) {
+    Serial.println("Connection HTTPS failed");
+    return;
+  }
+    client.print(String(whole) +"Connection: close\r\n\r\n");
+    Serial.println("Request sent");
+    while (client.connected() || client.available()) {
+    if (client.available()) {
+      String line = client.readStringUntil('\r');
+      Serial.print(line);
+    }
+  }*/
+   WiFiClientSecure client;
+    const char* host = "min-api.cryptocompare.com";
+  const int httpsPort = 443;
+
+  // Compose the request
+  String request = String("GET /data/v2/histoday?fsym=") + name + "&tsym=USD&limit=3 HTTP/1.1\r\n"+
+"Host: " + host + "\r\n"+
+"Connection: close\r\n\r\n";
+
+  // Connect to the server
+  client.setInsecure();
+  if (!client.connect(host, httpsPort)) {
+    Serial.println("Connection to HTTPS server failed");
+    return;
+  }
+
+  // Send the request
+  client.print(request);
+  Serial.println("Request sent");
+
+  // Read and print the response
+  while (client.connected() || client.available()) {
+    if (client.available()) {
+      String line = client.readStringUntil('\r');
+      Serial.print(line);
+    }
+  }
+
+  // Close the connection
+  client.stop();
+     return;
+
+
+   /*  
+     client.println("GET ");
+    Serial.printf("STRING:%s\n",whole);
+    http->begin("Google.com");
+    
+    Serial.println("YOU ARE HERE");
+    int httpResponseCode = http->GET();
+    Serial.println("Point 1");
+    if (httpResponseCode>0){
+      Serial.println("SUCCES CODE");
+      }else{
+      }//Handle errors
+    Serial.println("Point 2");
+    String json = http->getString();
+        StaticJsonDocument<12000> doc;
+     DeserializationError error = deserializeJson(doc, json);
+
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+  for (int i = 0; i<30;i++){
+    JsonObject index = doc["Data"]["Data"][i];
+    float val = index["open"].as<float>();
+    this->precios[i]=val;
+    Serial.printf("SAVED VAL #%i\n",i);
+  }
+   http->end();
+  delete whole;*/
+}
+
+void Prices::gen_precios(char* name, char* dates,  HTTPClient* http){
 
   char web []= "http://rate.sx/";
   char *whole=new char[40];
   for (int i = 0; i<31;i++){
-    price_count=0;
     sprintf(whole, "%s%s@%s..%s",web,name,&dates[(i+1)*DATE_STRING_SIZE],&dates[i*DATE_STRING_SIZE]);
-    //data = popen(whole, "r");
     Serial.printf("STRING:%s\n",whole);
     http->begin(whole);
     int httpResponseCode = http->GET();
@@ -212,13 +299,22 @@ void Prices::gen_precios(char* name, char* dates, char* price, int& price_count,
       Serial.println(httpResponseCode);
       //return;
     }
+    while (http->getSize()<1000){
+      Serial.println("Error getting data");
+      Serial.println(http->getString());
+      http->end();
+      http->begin(whole);
+      http->GET();
+      delay(3000); 
+    }
     Serial.printf("Parsing Input #%i\n",i);
+    Serial.printf("SIZE: %i\n",http->getSize());
     this->precios[i]=get_val_of_date((char *)http->getString().c_str(), http->getSize());
     Serial.printf("RECOLLECION TERMINADA; ELEMENTO %i; CRYPTO:%s\n", i, name);
     http->end();
+    delay(3000); //Avoid getting marked as ddos
   }
-  
-  
+  delete whole;
 }
 
 void Prices::print_values(){

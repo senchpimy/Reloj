@@ -32,7 +32,8 @@ public:
 
     Prices();
 
-    void gen_precios(char* name, char* dates, char* price, int& price_count,HTTPClient* http);
+    void gen_precios(char* name, char* dates, HTTPClient* http);
+    void gen_precios_v2(char* name, char* api_key, HTTPClient* http);
 
     void print_values();
 };
