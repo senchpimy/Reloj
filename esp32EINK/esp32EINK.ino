@@ -87,14 +87,14 @@ void relojLoop( void * parameters) {
   bool updateDatos=true;
   
   while(true) {
-    if (r->obtenerHora()==2358 && updateDatos){
+    /*if (r->obtenerHora()==2358 && updateDatos){
       //Obtener nuevos datos
       UpdateDatosSig=true;
       updateDatos=false;
     }
     if (r->obtenerHora()==2359){
       updateDatos=true;
-    }
+    }*/
     
     if (parpadear){
       if (parpa){
@@ -105,18 +105,21 @@ void relojLoop( void * parameters) {
         r->show();
         parpa=true;
       }
+    }else{
+      r->show();
     }
   if (millis() - lastMillis >= 60*1000UL) //cada minuto
      {
       lastMillis=millis();
       r->aumentarMinuto();
-      r->show();
     }
     if (digitalRead(2)){
+      Serial.println("Aumnentado");
       r->aumentarMinuto();
       parpadear=false;
     }
     if (digitalRead(4)){
+      Serial.println("Reducido");
       r->reducirMinuto();
       parpadear=false;
     }
