@@ -209,7 +209,12 @@ int round_to(float number){
   Data::Data(char * nombre, float * lista) {
     //  lista=(double*)malloc(sizeof(double)*NUM_DIAS);
     this -> nombre = nombre;
-    this -> lista = lista;
+    this -> lista = lista;  
+    if (strcmp(nombre,"doge")==0){
+     for (int i = 0; i<DIAS; i++){
+       this->lista[i]=this->lista[i]*1000;
+     }
+    }
     scaled = false;
     string_float_repr=(char *) malloc(sizeof(char)*10);
   }

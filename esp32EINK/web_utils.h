@@ -1,39 +1,17 @@
 #include <HTTPClient.h>
 #include <time.h>
+#include "hora.h"
+#include <ArduinoJson.h>
 
-float get_val_of_date(char* price, int price_count);
 #pragma once
-class Fecha
-{
-  public:
-    int year;
-    int month;
-    int day;
-    int dates_ptr;
-    char* dates;
-    char* original_date;
-
-    Fecha(HTTPClient* http);
-    void fill_data();
-    void fill_data_v2();
-
-
-    void gen_dates();
-
-    void reduce_one();
-        
-    void print_dates();
-};
 
 class Prices
 {
 public:
-    float* precios;
+    StaticJsonDocument<2000> doc;
+    bool update( HTTPClient* http);
 
-    Prices();
-
-    void gen_precios(char* name, char* dates, HTTPClient* http);
-    void gen_precios_v2(char* name, char* api_key, HTTPClient* http);
-
+    void gen_precios(char* name, float prices[]);
+    void set_time(Reloj** r);
     void print_values();
 };

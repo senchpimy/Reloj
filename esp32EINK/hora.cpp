@@ -5,7 +5,7 @@
 #define CLK 23
 #define DIO 22
 
-  Reloj::Reloj(int hora, int minutos) : display(CLK, DIO) {
+Reloj::Reloj(int hora, int minutos) : display(CLK, DIO) {
     //display.setBrightness(0x0f);
     display.setBrightness(5);
     char input[10];
