@@ -34,18 +34,35 @@ void Prices::gen_precios(char* name, float prices[]) {
   int i = 0;
   for (JsonVariant v : arr) {
     float val = v.as<float>();
-    prices[i] = val;  
+    prices[i] = val;
     i++;
   }
 
 }
 
-void Prices::set_time(Reloj** r) {
-  int hora, minuto;
+int Prices::set_time(Reloj** r) {
   String str = doc["time"].as<String>();
-  sscanf(str.c_str(), "%i:%i", &hora, &minuto);
-  *r = new Reloj(hora, minuto);
+  Serial.print("HORA OBTENIDA: ");
+  Serial.println(str);
+  //sscanf(str.c_str(), "%i:%i", &hora, &minuto); //for some reason some times it doesnt parse correctly
+  char * ptr =(char *) str.c_str();
+  ptr[2]='\0';
+  int hora = atoi(ptr);
+  int minuto = atoi(ptr+3);
+  Serial.print("INTS OBTENIDOS DE LA HORA: ");
+  Serial.print(hora);
+  Serial.print(",");
+  Serial.println(minuto);
+  if (hora == 0 && minuto == 0){
+    Serial.println("Parse failed");
+    hora = 12;
+    minuto = 0;
+    (*r)->show();
+    return 1;
+  }
+  *r = new Reloj(hora, minuto-1);//less one couse it's somewhat inexact
   (*r)->show();
+  return 0;
 }
 
 void Prices::print_values() {

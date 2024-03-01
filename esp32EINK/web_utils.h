@@ -12,6 +12,6 @@ public:
     bool update( HTTPClient* http);
 
     void gen_precios(char* name, float prices[]);
-    void set_time(Reloj** r);
+    int set_time(Reloj** r);
     void print_values();
 };

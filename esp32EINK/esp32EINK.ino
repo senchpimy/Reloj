@@ -27,9 +27,9 @@ void setup() {
 
   Data * datos = (Data*) malloc(sizeof(Data) * 3);
 
-  gui -> init(1);
+
   if (task) {
-//    gui->progress(0);
+    //    gui->progress(0);
 
     p.gen_precios((char *)"doge", doge);
 
@@ -37,9 +37,10 @@ void setup() {
 
     p.gen_precios((char *)"xmr", xmr);
 
-  //  gui->progress(1);
-    p.set_time(&r);
-    parpadear=false;
+    //  gui->progress(1);
+    int result = p.set_time(&r);
+    if (result == 0)
+      parpadear = false;
   }
 
   TaskHandle_t Task1;
@@ -59,7 +60,7 @@ void setup() {
 
 
 
-
+  gui -> init(1);
   //Limpiar pantalla
   Paint_Clear(EPD_5IN65F_WHITE);
   int i = 0;
