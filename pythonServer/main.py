@@ -1,6 +1,6 @@
 import json
 import requests
-from datetime import date,timedelta,datetime
+from datetime import date, timedelta, datetime
 import re
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -9,110 +9,160 @@ import signal
 import sys
 import os
 
-headers = {'User-Agent':'curl'}
+headers = {'User-Agent': 'curl'}
 site = "https://rate.sx"
-coins = ["eth", "doge","xmr"]
-values = {}
+coins = ["eth", "doge", "xmr"]
 lock = threading.Lock()
+FILE = ""
+DELAY = 10  # Mayor delay entre requests
+DB_FILE = "db.json"
+data = {}  # Datos globales en memoria
 
-def modiffy_str(str):
+def modiffy_str(new_data):
     with lock:
         global FILE
-        FILE = str
+        FILE = new_data
 
 def get_str():
     with lock:
-        return FILE
+        # Si FILE está vacío, retorna un JSON por defecto "{}"
+        return FILE if FILE.strip() else json.dumps({})
 
 modiffy_str("")
 
+def save_to_json():
+    """Guarda los datos actuales en el archivo JSON."""
+    try:
+        data["time"] = datetime.now().strftime("%H:%M")
+        with open(DB_FILE, "w") as f:
+            json.dump(data, f, indent=4)
+        modiffy_str(json.dumps(data))
+        print("\nDatos guardados en db.json correctamente.")
+    except Exception as e:
+        print(f"\nError al guardar JSON: {str(e)}")
+
 def signal_handler(sig, frame):
-    print('\nProgram is being terminated...')
+    """Maneja la señal de interrupción (Ctrl+C), guardando los datos antes de salir."""
+    print("\nInterrupción detectada. Guardando datos antes de salir...")
+    save_to_json()
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def get_value(coin:str, d1:str,d2:str)->float:
-    str = f"{site}/{coin}@{d2}..{d1}"
-    print(str)
-    r = requests.get(str,headers=headers)
-    #TODO HANDLE error in request
-    avg_pattern = re.search(r'avg:\x1b\[0m \$(\d+(\.\d+)?)\x1b\[2m',r.text)
-    #TODO HANDLE avg_pattern being None
-    res = avg_pattern.group(1)
-    return float(res)
+def get_value(coin: str, target_date: date):
+    try:
+        previous_date = target_date - timedelta(days=1)
+        url = f"{site}/{coin}@{previous_date}..{target_date}"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        avg_pattern = re.search(r'avg:\x1b\[0m \$(\d+\.?\d*)\x1b\[2m', response.text)
+        return float(avg_pattern.group(1)) if avg_pattern else 0.0
+    except Exception as e:
+        print(f"Error en {coin} para {target_date}: {str(e)}")
+        return 0.0
 
 def init():
-    for coin in coins:
-        arr=[]
-        for iter in range(30):
-            td = date.today()-timedelta(days=iter)
-            d1 = td.strftime("%Y-%m-%d")
-            db = date.today()-timedelta(days=iter+1)
-            d2 = db.strftime("%Y-%m-%d")
-            res = get_value(coin,d1,d2)
-            arr.append(res)
-            time.sleep(2)
-        values[coin]=arr[::-1]
-    t = date.today().strftime("%Y-%m-%d")
-    values["date"]=t
-    values["time"]=datetime.now().strftime("%H:%M")
-    file = json.dumps(values)
-    with open("db.json","w") as f:
-        f.write(file)
-    print("Finalizing CREATING db")
-    modiffy_str(file)
-			
-#init()
-def check_db():
-    print("Cheking DB...")
-    if os.path.isfile("db.json"):
-        print("DB FOUND")
-        f = open("db.json","r").read() #CHECK If it is up to date
-        modiffy_str(f)
-    else:
-        print("Creating New DB")
-        init()
-    conj = json.loads(get_str())
-    current_db = datetime.strptime(conj["date"],"%Y-%m-%d")
-    while True:
-        hoy = datetime.now() 
-        res = hoy-current_db
-        if res.days>1:
-            for i in range(res.days):
-                for coin in coins:
-                    conj[coin].pop()
-                    td = date.today()-timedelta(days=i)
-                    d1 = td.strftime("%Y-%m-%d")
-                    db = date.today()-timedelta(days=i+1)
-                    d2 = db.strftime("%Y-%m-%d")
-                    res = get_value(coin,d1,d2) 
-                    conj[coin].insert(0,res)
+    """Inicializa la base de datos con los últimos 30 días de valores."""
+    global data
+    print("Inicializando últimos 30 días...")
+    data = {coin: [] for coin in coins}
+    data["date"] = date.today().strftime("%Y-%m-%d")
+    
+    for days_back in range(30):
+        target_date = date.today() - timedelta(days=days_back)
+        daily_data = {}
+        
+        for coin in coins:
+            daily_data[coin] = get_value(coin, target_date)
+            print(f"Obteniendo valor para {coin} para el día {target_date}")
+            time.sleep(DELAY)  # Delay entre requests
             
-hostname="localhost"
-port = 8080
+        for coin in coins:
+            data[coin].insert(0, daily_data[coin])  # Insertar al inicio
+        
+        data["date"] = target_date.strftime("%Y-%m-%d")
+        save_to_json()
+        print(f"Día {target_date} registrado")
+    
+    save_to_json()
+
+def actualizar_diario():
+    """Actualiza los datos diariamente."""
+    global data
+    while True:
+        try:
+            if not os.path.exists(DB_FILE):
+                print("No se encontró db.json, inicializando...")
+                init()
+                continue
+
+            with open(DB_FILE, "r") as f:
+                data = json.load(f)
+            
+            ultima_fecha = datetime.strptime(data["date"], "%Y-%m-%d").date()
+            hoy = date.today()
+            
+            if ultima_fecha >= hoy:
+                time.sleep(3600*24)  # Esperar 1 día si ya está actualizado
+                continue
+                
+            print(f"Actualizando nuevo día: {hoy}")
+            nuevos_datos = {}
+            
+            for coin in coins:
+                nuevos_datos[coin] = get_value(coin, hoy)
+                print(f"Obteniendo valor de {coin}")
+                time.sleep(DELAY)
+            
+            for coin in coins:
+                data[coin].insert(0, nuevos_datos[coin])
+                if len(data[coin]) > 30:
+                    data[coin].pop()  # Eliminar el más antiguo
+            
+            data["date"] = hoy.strftime("%Y-%m-%d")
+            save_to_json()
+            
+            time.sleep(86400 - DELAY * len(coins))  # Esperar 24 horas exactas
+            
+        except Exception as e:
+            print(f"Error en actualización: {str(e)}")
+            time.sleep(3600)
+
 class Server(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header("Content-type","text/json")
+        self.send_header("Content-type", "application/json")
         self.end_headers()
-        f = get_str()
-        dic = json.loads(f)
-        dic["time"]=datetime.now().strftime("%H:%M")
-        text = json.dumps(dic)
-        print(f"Sending {text}")
-        modiffy_str(text)
-        self.wfile.write(bytes(text,"utf-8"))
+        respuesta = json.loads(get_str())
+        respuesta["time"] = datetime.now().strftime("%H:%M")
+        self.wfile.write(json.dumps(respuesta).encode())
 
+if __name__ == "__main__":
+    if not os.path.exists(DB_FILE):
+        init()
+    else:
+        with open(DB_FILE, "r") as f:
+            data = json.load(f)  # Cargar datos iniciales
+        # Actualizamos FILE con el contenido leído
+        modiffy_str(json.dumps(data))
 
-if __name__=="__main__":
-    threading.Thread(target=check_db,daemon=True).start()
-    webServer = HTTPServer((hostname,port),Server)
+    # Iniciar el hilo para actualizar datos diariamente
+    update_thread = threading.Thread(target=actualizar_diario)
+    update_thread.daemon = True
+    update_thread.start()
+
+    # Iniciar el servidor HTTP en un hilo separado
+    server_thread = threading.Thread(target=HTTPServer(("0.0.0.0", 1234), Server).serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+    
+    print("Servidor corriendo en el puerto 8080. Presiona Ctrl+C para salir.")
+    
     try:
-        print("Server Started")
-        webServer.serve_forever()
+        while True:
+            time.sleep(1)
     except KeyboardInterrupt:
-        pass
-
-    webServer.server_close()
-    print("Server STOPPED")
+        print("\nCerrando el programa...")
+        save_to_json()
+        sys.exit(0)

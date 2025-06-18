@@ -1,0 +1,3 @@
+#define SECRET_SSID "INFINITUM8BAF"
+#define SECRET_PASS  "HfWnWge44q"
+#define SERVER "http://192.168.1.79:1234"

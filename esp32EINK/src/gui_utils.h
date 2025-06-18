@@ -1,28 +1,27 @@
-#ifndef MY_HEADER_H
-#define MY_HEADER_H
+#ifndef GUI_UTILS_H
+#define GUI_UTILS_H
 
-#include "DEV_Config.h"
-#include "EPD.h"
-#include "GUI_Paint.h"
-#include "font.h"
+#include <Arduino.h>
 
-class Font;
-class BigFont;
-class SmallFont;
-class Transform;
+// Declaraciones a futuro
 class GraphCoordGen;
 class Data;
 class GUI;
+class Font;
+class BigFont;
+// class SmallFont; // Sigue comentada
 
 class Font {
 public:
+  // El puntero apuntará a datos en PROGMEM
   const unsigned char * data;
   int largo_total;
   int altura;
   int ancho;
 
   void draw_char(char w, int x, int y);
-  void draw_string(char * s, int x, int y);
+  // Se usa const char* para evitar warnings
+  void draw_string(const char* s, int x, int y);
 };
 
 class BigFont : public Font {
@@ -30,28 +29,18 @@ public:
   BigFont();
 };
 
+/*
 class SmallFont : public Font {
 public:
   SmallFont();
-  void draw_string(char * s, int x, int y);
+  void draw_string(const char* s, int x, int y);
   void draw_char(char w, int x, int y);
-
 };
-
-class Transform {
-public:
-  int x0;
-  int y0;
-  int x1;
-  int y1;
-  void tt(int X0, int Y0, int X1, int Y1);
-  void mostrar_valores();
-};
+*/
 
 class GraphCoordGen {
-  private: float coord_min;
-  float paso;
-  float val_min;
+private:
+  float coord_min, paso, val_min;
 public:
   GraphCoordGen(float val_max, float val_min, float coord_max, float coord_min);
   int form_pen(float y);
@@ -59,13 +48,13 @@ public:
 
 class Data {
 public:
-  char * nombre;
-  float max_v;
-  float min_v;
-  float * lista;
-  char * string_float_repr;
+  const char* nombre;
+  float max_v, min_v;
+  float* lista;
+  char* string_float_repr;
   boolean scaled;
-  Data(char * nombre, float * lista);
+  
+  Data(const char* nombre, float* lista);
   void find_max_min();
   void plot();
   void draw_labels();
@@ -73,12 +62,12 @@ public:
 };
 
 class GUI {
- private:
+private:
   int numberCoins;
 public:
-  void init(int);
-  void draw_graph(Data * d);
+  void init(int coins);
+  void draw_graph(Data* d);
   void progress(int number);
 };
 
-#endif // MY_HEADER_H
+#endif // GUI_UTILS_H

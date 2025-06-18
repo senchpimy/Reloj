@@ -12,10 +12,11 @@ long lastMillis;
 auto r = new Reloj(12, 0);
 auto p = Prices();
 bool parpadear = true;
+inline void update_data();
 float eth[] = {1682.50, 1675.500000, 1664.199951, 1628.500000, 1598.500000, 1588.599976, 1581.199951, 1591.900024, 1593.099976, 1593.099976, 1601.699951, 1631.900024, 1642.300049, 1639.400024, 1628.000000, 1638.099976, 1627.400024, 1624.699951, 1598.500000, 1587.599976, 1585.400024, 1623.199951, 1634.199951, 1637.300049, 1634.900024, 1630.099976, 1628.199951, 1632.699951, 1635.199951, 1633.699951};
 float xmr[] = {147.320007, 146.330002, 145.630005, 146.500000, 145.259995, 144.289993, 144.250000, 143.070007, 143.820007, 145.740005, 146.970001, 147.350006, 147.289993, 146.479996, 144.699997, 145.740005, 147.610001, 144.850006, 143.110001, 141.229996, 141.149994, 142.820007, 143.279999, 143.080002, 142.320007, 139.380005, 139.919998, 142.029999, 140.399994, 140.520004  };
 float doge[] = {0.062352, 0.062069, 0.061790, 0.060970, 0.060636, 0.060714, 0.060868, 0.061460, 0.061598, 0.061542, 0.062031, 0.062409, 0.062514, 0.061968, 0.061981, 0.062320, 0.062033, 0.061655, 0.061105, 0.061243, 0.060733, 0.061960, 0.063527, 0.063335, 0.063335, 0.063757, 0.063732, 0.063178, 0.063383, 0.063549};
-
+Data * datos;
 
 void loop() {}
 void setup() {
@@ -25,17 +26,11 @@ void setup() {
 
   bool task = p.update(&http);
 
-  Data * datos = (Data*) malloc(sizeof(Data) * 3);
+  datos = (Data*) malloc(sizeof(Data) * 3);
 
 
   if (task) {
-    //    gui->progress(0);
-
-    p.gen_precios((char *)"doge", doge);
-
-    p.gen_precios((char *)"eth", eth);
-
-    p.gen_precios((char *)"xmr", xmr);
+    update_data();
 
     //  gui->progress(1);
     int result = p.set_time(&r);
@@ -54,22 +49,20 @@ void setup() {
     0); /* Core where the task should run */
 
 
-  datos[0] = Data("doge", doge); // Asignar los datos recogidos
-  datos[2] = Data("eth", eth);
-  datos[1] = Data("xmr", xmr);
+
 
 
 
   gui -> init(1);
   //Limpiar pantalla
-  Paint_Clear(EPD_5IN65F_WHITE);
+  //Paint_Clear(EPD_5IN65F_WHITE);
   int i = 0;
   int hora = 0;
   while (1) {
     if (hora != (r->obtenerHora() / 100))
     {
       hora = r->obtenerHora() / 100;
-      Paint_Clear(EPD_5IN65F_WHITE);
+      //Paint_Clear(EPD_5IN65F_WHITE);
       gui->draw_graph(&datos[i]);
       i++;
       if (i == 3) {
@@ -93,13 +86,11 @@ void relojLoop( void * parameters) {
 
   while (true) {
     if (updateDatos) {
-      p.update(&http);
-      p.gen_precios((char *)"doge", doge);
-
-      p.gen_precios((char *)"eth", eth);
-
-      p.gen_precios((char *)"xmr", xmr);
-      p.set_time(&r);
+      bool result = p.update(&http);
+      if (result) {
+        update_data();
+        p.set_time(&r);
+      }
       updateDatos = false;
     }
     if (r->obtenerHora() == 2359) {
@@ -144,4 +135,16 @@ inline void connect() {
   }
   WiFi.waitForConnectResult();
   WiFi.config(WiFi.localIP(), WiFi.gatewayIP(), WiFi.subnetMask(), IPAddress(1, 1, 1, 1));
+}
+
+inline void update_data() {
+  p.gen_precios((char *)"doge", doge);
+
+  p.gen_precios((char *)"eth", eth);
+
+  p.gen_precios((char *)"xmr", xmr);
+
+  datos[0] = Data("doge", doge);
+  datos[2] = Data("eth", eth);
+  datos[1] = Data("xmr", xmr);
 }
