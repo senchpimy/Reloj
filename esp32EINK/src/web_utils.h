@@ -9,7 +9,7 @@ class Prices
 {
 public:
     StaticJsonDocument<2000> doc;
-    bool update( HTTPClient* http);
+    bool update( HTTPClient* client, const char* url);
 
     void gen_precios(char* name, float prices[]);
     int set_time(Reloj** r);

@@ -10,10 +10,10 @@ const int DATE_STRING_SIZE = 11;
 #include <WiFiClientSecure.h>
 
 
-bool Prices::update(HTTPClient * http) {
+bool Prices::update(HTTPClient * http, const char* serverUrl) {
   WiFiClient cli;
   for (int tries = 0; tries < 10; tries++) {
-    http->begin(cli, (char *)SERVER);
+    http->begin(cli, (char *)serverUrl);
     int httpResponseCode = http->GET();
     Serial.println(httpResponseCode);
     if (httpResponseCode > 0) {
