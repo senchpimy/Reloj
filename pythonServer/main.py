@@ -7,162 +7,233 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
 import signal
 import sys
-import os
+import hashlib
+from spotify_client import SpotifyClient
+from image_processor import process_image
+from database import Database
 
 headers = {'User-Agent': 'curl'}
 site = "https://rate.sx"
 coins = ["eth", "doge", "xmr"]
 lock = threading.Lock()
-FILE = ""
-DELAY = 10  # Mayor delay entre requests
-DB_FILE = "db.json"
-data = {}  # Datos globales en memoria
+DELAY = 10
 
-def modiffy_str(new_data):
-    with lock:
-        global FILE
-        FILE = new_data
+db = Database()
+data_cache = {} # Caché en memoria para el servidor
 
-def get_str():
-    with lock:
-        # Si FILE está vacío, retorna un JSON por defecto "{}"
-        return FILE if FILE.strip() else json.dumps({})
+spotify_client = None
+current_spotify_state = {"is_playing": False}
+current_image_data = None
+current_image_hash = ""
+last_spotify_poll = 0
+SPOTIFY_POLL_INTERVAL = 3
 
-modiffy_str("")
+def get_spotify_data():
+    global current_spotify_state, current_image_data, current_image_hash, last_spotify_poll
+    
+    now = time.time()
+    if now - last_spotify_poll < SPOTIFY_POLL_INTERVAL:
+         return current_spotify_state
 
-def save_to_json():
-    """Guarda los datos actuales en el archivo JSON."""
+    last_spotify_poll = now
     try:
-        data["time"] = datetime.now().strftime("%H:%M")
-        with open(DB_FILE, "w") as f:
-            json.dump(data, f, indent=4)
-        modiffy_str(json.dumps(data))
-        print("\nDatos guardados en db.json correctamente.")
+        if spotify_client:
+            info = spotify_client.get_playback_info()
+            
+            # Check if cover changed
+            new_cover_url = info.get("cover_url")
+            old_cover_url = current_spotify_state.get("cover_url")
+            
+            if new_cover_url and new_cover_url != old_cover_url:
+                print(f"New cover detected: {new_cover_url}")
+                img_data, dom_color = process_image(new_cover_url)
+                if img_data:
+                    current_image_data = img_data
+                    current_image_hash = hashlib.md5(new_cover_url.encode()).hexdigest()[:8]
+                    current_spotify_state["dominant_color"] = dom_color
+                    print(f"Image processed. Hash: {current_image_hash}, Color: {dom_color}")
+            
+            info["image_hash"] = current_image_hash
+            info["dominant_color"] = current_spotify_state.get("dominant_color", 0)
+            current_spotify_state = info
     except Exception as e:
-        print(f"\nError al guardar JSON: {str(e)}")
+        print(f"Error getting Spotify data: {e}")
+    
+    return current_spotify_state
 
-def signal_handler(sig, frame):
-    """Maneja la señal de interrupción (Ctrl+C), guardando los datos antes de salir."""
-    print("\nInterrupción detectada. Guardando datos antes de salir...")
-    save_to_json()
-    sys.exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
+# --- Funciones de Datos ---
 
 def get_value(coin: str, target_date: date):
     try:
-        previous_date = target_date - timedelta(days=1)
-        url = f"{site}/{coin}@{previous_date}..{target_date}"
+        url = f"{site}/{coin}@{target_date.strftime('%Y-%m-%d')}"
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        
         avg_pattern = re.search(r'avg:\x1b\[0m \$(\d+\.?\d*)\x1b\[2m', response.text)
         return float(avg_pattern.group(1)) if avg_pattern else 0.0
     except Exception as e:
         print(f"Error en {coin} para {target_date}: {str(e)}")
         return 0.0
 
-def init():
-    """Inicializa la base de datos con los últimos 30 días de valores."""
-    global data
-    print("Inicializando últimos 30 días...")
-    data = {coin: [] for coin in coins}
-    data["date"] = date.today().strftime("%Y-%m-%d")
-    
-    for days_back in range(30):
-        target_date = date.today() - timedelta(days=days_back)
-        daily_data = {}
+def update_cache():
+    """Actualiza la caché en memoria desde la base de datos."""
+    global data_cache
+    with lock:
+        print("Actualizando caché desde DB...")
+        temp_data = {}
+        
+        start_date = db.get_oldest_date_in_limit(30)
+        if not start_date:
+            start_date = (date.today() - timedelta(days=29)).strftime("%Y-%m-%d")
+        
+        temp_data["date"] = start_date
         
         for coin in coins:
-            daily_data[coin] = get_value(coin, target_date)
-            print(f"Obteniendo valor para {coin} para el día {target_date}")
-            time.sleep(DELAY)  # Delay entre requests
+            prices = db.get_last_30_days(coin)
+            while len(prices) < 30:
+                prices.insert(0, 0.0)
+            temp_data[coin] = prices
             
-        for coin in coins:
-            data[coin].insert(0, daily_data[coin])  # Insertar al inicio
-        
-        data["date"] = target_date.strftime("%Y-%m-%d")
-        save_to_json()
-        print(f"Día {target_date} registrado")
+        data_cache = temp_data
+        print("Caché actualizada.")
+
+def init():
+    """
+    Rellena huecos en la base de datos asegurando siempre los últimos 30 días.
+    """
+    print("Verificando integridad de la base de datos...")
     
-    save_to_json()
+    today = date.today()
+    window_start = today - timedelta(days=29)
+    
+    latest_str = db.get_latest_date()
+    start_fetch_date = window_start
+
+    if latest_str:
+        latest = datetime.strptime(latest_str, "%Y-%m-%d").date()
+        if latest >= window_start:
+            start_fetch_date = latest + timedelta(days=1)
+        else:
+            print(f"Datos demasiado antiguos (último: {latest}). Reiniciando ventana de 30 días.")
+            start_fetch_date = window_start
+    
+    if start_fetch_date > today:
+        print("Datos al día.")
+    else:
+        curr = start_fetch_date
+        print(f"Actualizando datos desde {curr} hasta {today}...")
+        
+        while curr <= today:
+            print(f"Procesando: {curr}")
+            for coin in coins:
+                val = get_value(coin, curr)
+                db.insert_price(coin, curr.strftime("%Y-%m-%d"), val)
+                print(f"  - {coin}: {val}")
+                time.sleep(DELAY)
+            curr += timedelta(days=1)
+
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cutoff_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    cursor.execute("DELETE FROM prices WHERE date <= ?", (cutoff_date,))
+    deleted = cursor.rowcount
+    conn.commit()
+    conn.close()
+    if deleted > 0:
+        print(f"Limpieza: Se eliminaron {deleted} registros antiguos.")
+    
+    print("Sincronización completada.")
+    update_cache()
 
 def actualizar_diario():
-    """Actualiza los datos diariamente."""
-    global data
+    """
+    Hilo en segundo plano para actualizar los datos diariamente.
+    """
     while True:
         try:
-            if not os.path.exists(DB_FILE):
-                print("No se encontró db.json, inicializando...")
-                init()
-                continue
+            now = datetime.now()
+            next_run = (now + timedelta(days=1)).replace(hour=0, minute=1, second=0, microsecond=0)
+            sleep_duration = (next_run - now).total_seconds()
+            
+            print(f"\nPróxima actualización programada para {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+            time.sleep(sleep_duration)
 
-            with open(DB_FILE, "r") as f:
-                data = json.load(f)
+            print(f"\n[{datetime.now()}] Ejecutando actualización diaria...")
             
-            ultima_fecha = datetime.strptime(data["date"], "%Y-%m-%d").date()
-            hoy = date.today()
-            
-            if ultima_fecha >= hoy:
-                time.sleep(3600*24)  # Esperar 1 día si ya está actualizado
-                continue
-                
-            print(f"Actualizando nuevo día: {hoy}")
-            nuevos_datos = {}
-            
+            latest_str = db.get_latest_date()
+            if latest_str == date.today().strftime("%Y-%m-%d"):
+                 print("Ya existen datos de hoy.")
+                 continue
+
+            today = date.today()
             for coin in coins:
-                nuevos_datos[coin] = get_value(coin, hoy)
-                print(f"Obteniendo valor de {coin}")
+                val = get_value(coin, today)
+                db.insert_price(coin, today.strftime("%Y-%m-%d"), val)
+                print(f"  - {coin}: {val}")
                 time.sleep(DELAY)
             
-            for coin in coins:
-                data[coin].insert(0, nuevos_datos[coin])
-                if len(data[coin]) > 30:
-                    data[coin].pop()  # Eliminar el más antiguo
-            
-            data["date"] = hoy.strftime("%Y-%m-%d")
-            save_to_json()
-            
-            time.sleep(86400 - DELAY * len(coins))  # Esperar 24 horas exactas
-            
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            cutoff_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+            cursor.execute("DELETE FROM prices WHERE date <= ?", (cutoff_date,))
+            conn.commit()
+            conn.close()
+
+            update_cache()
+
         except Exception as e:
-            print(f"Error en actualización: {str(e)}")
+            print(f"Error en actualización diaria: {e}")
             time.sleep(3600)
 
 class Server(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path == "/spotify":
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            info = get_spotify_data()
+            self.wfile.write(json.dumps(info).encode())
+            return
+            
+        if self.path == "/spotify/image":
+            if current_image_data:
+                self.send_response(200)
+                self.send_header("Content-type", "application/octet-stream")
+                self.send_header("Content-Length", str(len(current_image_data)))
+                self.end_headers()
+                self.wfile.write(current_image_data)
+            else:
+                self.send_response(404)
+                self.end_headers()
+            return
+
         self.send_response(200)
         self.send_header("Content-type", "application/json")
         self.end_headers()
-        respuesta = json.loads(get_str())
-        respuesta["time"] = datetime.now().strftime("%H:%M")
-        self.wfile.write(json.dumps(respuesta).encode())
+        
+        with lock:
+            response = data_cache.copy()
+        
+        response["time"] = datetime.now().strftime("%H:%M")
+        self.wfile.write(json.dumps(response).encode())
 
 if __name__ == "__main__":
-    if not os.path.exists(DB_FILE):
-        init()
-    else:
-        with open(DB_FILE, "r") as f:
-            data = json.load(f)  # Cargar datos iniciales
-        # Actualizamos FILE con el contenido leído
-        modiffy_str(json.dumps(data))
+    try:
+        spotify_client = SpotifyClient()
+        print("Spotify Client initialized.")
+    except Exception as e:
+        print(f"Warning: Could not initialize Spotify Client: {e}")
 
-    # Iniciar el hilo para actualizar datos diariamente
-    update_thread = threading.Thread(target=actualizar_diario)
-    update_thread.daemon = True
+    init()
+
+    update_thread = threading.Thread(target=actualizar_diario, daemon=True)
     update_thread.start()
 
-    # Iniciar el servidor HTTP en un hilo separado
-    server_thread = threading.Thread(target=HTTPServer(("0.0.0.0", 1234), Server).serve_forever)
-    server_thread.daemon = True
-    server_thread.start()
-    
-    print("Servidor corriendo en el puerto 8080. Presiona Ctrl+C para salir.")
+    server = HTTPServer(("0.0.0.0", 1234), Server)
+    print("Servidor corriendo en el puerto 1234. Presiona Ctrl+C para salir.")
     
     try:
-        while True:
-            time.sleep(1)
+        server.serve_forever()
     except KeyboardInterrupt:
-        print("\nCerrando el programa...")
-        save_to_json()
+        print("\nCerrando el servidor...")
+        server.shutdown()
         sys.exit(0)
