@@ -6,42 +6,46 @@
 #define DIO 22
 
 Reloj::Reloj(int hora, int minutos) : display(CLK, DIO) {
-    //display.setBrightness(0x0f);
     display.setBrightness(5);
-    char input[10];
     f = true;
-    if (hora >= 0 && hora <= 23 && minutos >= 0 && minutos <= 59) {
-      this -> hora = hora;
-      this -> minutos = minutos;
-    } else {
-      this -> hora = 0;
-      this -> minutos = 0;
-    }
-  }
+    sync(hora, minutos);
+}
 
-  void Reloj::aumentarMinuto() {
-    minutos += 1;
-    hora += minutos / 60;
-    minutos %= 60;
-    hora %= 24; // Asegurarse de que la hora esté en formato de 24 horas
-  }
+void Reloj::sync(int h, int m) {
+    this->syncHora = h;
+    this->syncMinutos = m;
+    this->syncMillis = millis();
+    this->hora = h;
+    this->minutos = m;
+}
 
-  void Reloj::reducirMinuto() {
-    if (minutos > 0) {
-        minutos -= 1;
-    } else {
-        minutos = 59; 
-        if (hora > 0) {
-            hora -= 1;
-        } else {
-            hora = 23;
-        }
+void Reloj::aumentarMinuto() {
+    // Para botones manuales: adelantamos el tiempo de sincronización
+    syncMinutos++;
+    if (syncMinutos >= 60) {
+        syncMinutos = 0;
+        syncHora = (syncHora + 1) % 24;
     }
 }
 
-  int Reloj::obtenerHora() {
-    return (hora * 100) + minutos;
-  }
+void Reloj::reducirMinuto() {
+    syncMinutos--;
+    if (syncMinutos < 0) {
+        syncMinutos = 59;
+        syncHora = (syncHora + 23) % 24;
+    }
+}
+
+int Reloj::obtenerHora() {
+    // Calculamos el tiempo total transcurrido en segundos
+    unsigned long elapsedSecs = (millis() - syncMillis) / 1000;
+    
+    int totalMinutes = (syncHora * 60) + syncMinutos + (elapsedSecs / 60);
+    int h = (totalMinutes / 60) % 24;
+    int m = totalMinutes % 60;
+    
+    return (h * 100) + m;
+}
   void Reloj::setHora(int hora, int min) {
     this -> hora = hora;
     this -> minutos = min;

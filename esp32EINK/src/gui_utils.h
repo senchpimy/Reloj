@@ -68,6 +68,8 @@ public:
   void init(int coins);
   void draw_graph(Data* d);
   void progress(int number);
+  void draw_image_from_stream(Stream* stream, size_t totalSize);
+  void test_pattern();
 };
 
 #endif // GUI_UTILS_H

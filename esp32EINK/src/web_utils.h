@@ -5,6 +5,23 @@
 
 #pragma once
 
+#include <functional>
+
+struct SpotifyStatus {
+    bool is_playing;
+    String title;
+    String artist;
+    String image_hash;
+    int dominant_color;
+};
+
+class SpotifyHandler {
+public:
+    JsonDocument doc; 
+    bool getStatus(HTTPClient * http, const char* serverUrl, SpotifyStatus &status);
+    bool processImageStream(HTTPClient * http, const char* serverUrl, std::function<void(Stream*, size_t)> processor);
+};
+
 class Prices
 {
 public:

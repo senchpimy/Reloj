@@ -9,10 +9,59 @@ const int DATE_STRING_SIZE = 11;
 
 #include <WiFiClientSecure.h>
 
+bool SpotifyHandler::getStatus(HTTPClient * http, const char* serverUrl, SpotifyStatus &status) {
+    String url = String(serverUrl) + "/spotify";
+    http->begin(url);
+    int code = http->GET();
+    if (code == 200) {
+        String payload = http->getString();
+        deserializeJson(doc, payload);
+        status.is_playing = doc["is_playing"];
+        if (status.is_playing) {
+            status.title = doc["title"].as<String>();
+            status.artist = doc["artist"].as<String>();
+            status.image_hash = doc["image_hash"].as<String>();
+            status.dominant_color = doc["dominant_color"] | 0;
+        }
+        http->end();
+        return true;
+    }
+    http->end();
+    return false;
+}
+
+bool SpotifyHandler::processImageStream(HTTPClient * http, const char* serverUrl, std::function<void(Stream*, size_t)> processor) {
+    String url = String(serverUrl) + "/spotify/image";
+    Serial.print("Iniciando stream desde: "); Serial.println(url);
+    
+    http->setTimeout(15000); 
+    http->begin(url);
+    
+    int code = http->GET();
+    bool success = false;
+
+    if (code == 200) {
+        int len = http->getSize();
+        if (len > 0) {
+            WiFiClient * stream = http->getStreamPtr();
+            processor(stream, len);
+            success = true;
+        } else {
+            Serial.println("Error: Content-Length inválido.");
+        }
+    } else {
+        Serial.print("Error descarga HTTP: "); Serial.println(code);
+    }
+    
+    http->end();
+    return success;
+}
+
 
 bool Prices::update(HTTPClient * http, const char* serverUrl) {
   WiFiClient cli;
   for (int tries = 0; tries < 10; tries++) {
+    Serial.print("Connecting to: "); Serial.println(serverUrl);
     http->begin(cli, (char *)serverUrl);
     int httpResponseCode = http->GET();
     Serial.println(httpResponseCode);
@@ -46,21 +95,20 @@ int Prices::set_time(Reloj** r) {
   Serial.println(str);
   //sscanf(str.c_str(), "%i:%i", &hora, &minuto); //for some reason some times it doesnt parse correctly
   char * ptr =(char *) str.c_str();
-  ptr[2]='\0';
+  ptr[2] = '\0';
   int hora = atoi(ptr);
   int minuto = atoi(ptr+3);
   Serial.print("INTS OBTENIDOS DE LA HORA: ");
   Serial.print(hora);
   Serial.print(",");
   Serial.println(minuto);
+  
   if (hora == 0 && minuto == 0){
     Serial.println("Parse failed");
-    hora = 12;
-    minuto = 0;
-    (*r)->show();
     return 1;
   }
-  *r = new Reloj(hora, minuto-1);//less one couse it's somewhat inexact
+  
+  (*r)->sync(hora, minuto);
   (*r)->show();
   return 0;
 }

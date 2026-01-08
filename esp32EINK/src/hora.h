@@ -7,15 +7,18 @@ class Reloj {
 private:
   int hora;
   int minutos;
+  unsigned long syncMillis;
+  int syncHora;
+  int syncMinutos;
   int hrs = 0;
   int min = 0;
   TM1637Display display;
-  unsigned long lastMillis;
   bool f;
   char input[10];
 
 public:
   Reloj(int hora, int minutos);
+  void sync(int h, int m);
   void aumentarMinuto();
   void reducirMinuto();
   int obtenerHora();

@@ -1,4 +1,3 @@
-
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include <GxEPD2.h>
 #include <GxEPD2_7C.h>
@@ -117,6 +116,11 @@ void Data::find_max_min() {
 }
 
 void Data::plot() {
+    Serial.printf("\n--- Estadísticas para %s ---\n", nombre);
+    Serial.printf("Precio hace 30 días: %.3f\n", lista[0]);
+    Serial.printf("Precio hoy: %.3f\n", lista[DIAS-1]);
+    Serial.println("----------------------------");
+
     bf.draw_string(nombre, 30 + DESFACE_GRAFICA_X, 0);
 
     find_max_min();
@@ -143,14 +147,17 @@ void Data::draw_labels() {
 }
 
 void Data::draw_graph() {
-    const int GROSOR_GRAFICA = 3;
+    const int GROSOR_GRAFICA = 5;
     int paso = (int)(580 - 75) / (DIAS + 7);
     auto obj = GraphCoordGen(this->max_v, this->min_v, 75, 520);
+    
+    uint16_t colorGrafica = (this->lista[DIAS-1] >= this->lista[0]) ? GxEPD_GREEN : GxEPD_RED;
+
     int x0 = 46, y0 = obj.form_pen(this->lista[0]);
     int x1 = 46 + paso, y1 = obj.form_pen(this->lista[1]);
     for (int i = 2; i < DIAS; i++) {
         for (int j = 0; j < GROSOR_GRAFICA; j++) {
-            display.drawLine(x0 + DESFACE + DESFACE_GRAFICA_X + j, y0, x1 + DESFACE + DESFACE_GRAFICA_X + j, y1, GxEPD_RED);
+            display.drawLine(x0 + DESFACE + DESFACE_GRAFICA_X + j, y0, x1 + DESFACE + DESFACE_GRAFICA_X + j, y1, colorGrafica);
         }
         x0 = x1; y0 = y1;
         y1 = obj.form_pen(this->lista[i]);
@@ -158,13 +165,29 @@ void Data::draw_graph() {
     }
 }
 
-enum DrawMode { NONE, PROGRESS, GRAPH };
+#include <LittleFS.h>
+
+enum DrawMode { NONE, PROGRESS, GRAPH, IMAGE_TEST, IMAGE };
 DrawMode currentDrawMode = NONE;
 Data* currentData = nullptr;
 int currentProgressNumber = 0;
 int totalProgressCoins = 0;
+int currentDominantColorIdx = 0;
 
 void drawCallback(const void* params) {
+    auto getEinkColor = [](uint8_t idx) -> uint16_t {
+        switch(idx) {
+            case 0: return GxEPD_BLACK;
+            case 1: return GxEPD_WHITE;
+            case 2: return GxEPD_GREEN;
+            case 3: return GxEPD_BLUE;
+            case 4: return GxEPD_RED;
+            case 5: return GxEPD_YELLOW;
+            case 6: return GxEPD_ORANGE;
+            default: return GxEPD_WHITE; 
+        }
+    };
+
     if (currentDrawMode == PROGRESS) {
         bf.draw_string("RETRIEVING", -20, 200);
         bf.draw_string("DATA", 90, 260);
@@ -176,6 +199,43 @@ void drawCallback(const void* params) {
     } else if (currentDrawMode == GRAPH && currentData != nullptr) {
         draw_grid();
         currentData->plot();
+    } else if (currentDrawMode == IMAGE_TEST) {
+        uint16_t colores[] = { GxEPD_BLACK, GxEPD_WHITE, GxEPD_GREEN, GxEPD_BLUE, GxEPD_RED, GxEPD_YELLOW, GxEPD_ORANGE };
+        int barWidth = 40;
+        int startX = 60; 
+        for (int i = 0; i < 7; i++) {
+            display.fillRect(startX + (i * barWidth), 40, barWidth, 400, colores[i]);
+        }
+        display.drawRect(16, 15, 414, 450, GxEPD_BLACK);
+    } else if (currentDrawMode == IMAGE) {
+        uint16_t domColor = getEinkColor(currentDominantColorIdx);
+        
+        display.fillRect(1, 0, 414+30, 450+30, domColor);
+
+        for(int i=0; i<15; i++) {
+            display.drawRect(16-15+i, 15-15+i, 414+30-(i*2), 450+30-(i*2), domColor);
+        }
+
+        File file = LittleFS.open("/cover.bin", "r");
+        if (!file) return;
+
+        int imgW = 414;
+        int imgH = 450;
+        uint8_t readBuf[256];
+        int bufPos = 256;
+
+        for (int row = 0; row < imgH; row++) {
+            for (int col = 0; col < imgW; col += 2) {
+                if (bufPos >= 256) {
+                    file.read(readBuf, 256);
+                    bufPos = 0;
+                }
+                uint8_t b = readBuf[bufPos++];
+                display.drawPixel(16 + col, 15 + row, getEinkColor((b >> 4) & 0x0F));
+                display.drawPixel(16 + col + 1, 15 + row, getEinkColor(b & 0x0F));
+            }
+        }
+        file.close();
     }
 }
 
@@ -184,14 +244,14 @@ void GUI::init(int coins) {
     SPI.begin(13, -1, 14, 15);
     display.init(115200);
     display.setRotation(3);
-    Serial.println("GUI init con GxEPD2 finalizado.");
+    if(!LittleFS.begin(true)) Serial.println("LittleFS Error");
+    Serial.println("GUI init con GxEPD2 y LittleFS finalizado.");
 }
 
 void GUI::progress(int number) {
     currentDrawMode = PROGRESS;
     totalProgressCoins = this->numberCoins;
     currentProgressNumber = number;
-    
     display.fillScreen(GxEPD_WHITE);
     display.drawPaged(&drawCallback, 0); 
 }
@@ -199,7 +259,40 @@ void GUI::progress(int number) {
 void GUI::draw_graph(Data* d) {
     currentDrawMode = GRAPH;
     currentData = d;
-    
     display.fillScreen(GxEPD_WHITE);
     display.drawPaged(&drawCallback, 0);
+}
+
+void GUI::test_pattern() {}
+
+void GUI::draw_image_from_stream(Stream* stream, size_t totalSize) {
+    Serial.println("Guardando cover en Flash...");
+    File file = LittleFS.open("/cover.bin", "w");
+    if (!file) {
+        Serial.println("Error abriendo archivo en Flash");
+        return;
+    }
+
+    uint8_t tempBuf[512];
+    size_t downloaded = 0;
+    unsigned long start = millis();
+    
+    while (downloaded < totalSize && (millis() - start < 20000)) {
+        if (stream->available()) {
+            size_t r = stream->readBytes(tempBuf, min((size_t)512, totalSize - downloaded));
+            file.write(tempBuf, r);
+            downloaded += r;
+        }
+        delay(1);
+    }
+    file.close();
+
+    if (downloaded == totalSize) {
+        Serial.println("Imagen en Flash. Refrescando...");
+        currentDrawMode = IMAGE;
+        display.fillScreen(GxEPD_WHITE);
+        display.drawPaged(&drawCallback, 0);
+    } else {
+        Serial.printf("Error descarga: %d/%d\n", downloaded, totalSize);
+    }
 }
