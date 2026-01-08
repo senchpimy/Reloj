@@ -26,18 +26,6 @@
 
 ## ⚙️ Requisitos
 
-- **Python 3.11+** para el servidor.
+- **uv** para el servidor.
 - **PlatformIO** para compilar y flashear el firmware ESP32.
-- Dependencias Python: `requests`
 
----
-
-## 📄 Licencia
-
-Este proyecto está bajo la **Licencia MIT**. Consulta el archivo [LICENSE](./LICENSE) para más información.
-
----
-
-## ✨ Créditos
-
-Desarrollado por [senchpimy](https://github.com/senchpimy)

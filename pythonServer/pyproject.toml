@@ -1,0 +1,14 @@
+[project]
+name = "pythonserver"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.0",
+    "pillow>=12.1.0",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+    "spotipy>=2.25.2",
+]
