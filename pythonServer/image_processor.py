@@ -74,3 +74,5 @@ def process_image(url, width=414, height=450):
         packed = high | low
         
         return packed.tobytes(), dom_idx
+    except:
+        print("Errror bleh")
