@@ -3,7 +3,7 @@ import requests
 from datetime import date, timedelta, datetime
 import re
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import time
 import signal
 import sys
@@ -16,10 +16,11 @@ headers = {'User-Agent': 'curl'}
 site = "https://rate.sx"
 coins = ["eth", "doge", "xmr"]
 lock = threading.Lock()
+spotify_lock = threading.Lock()
 DELAY = 10
 
 db = Database()
-data_cache = {}  # Caché en memoria para el servidor
+data_cache = {}
 
 spotify_client = None
 current_spotify_state = {"is_playing": False}
@@ -32,38 +33,39 @@ SPOTIFY_POLL_INTERVAL = 3
 def get_spotify_data():
     global current_spotify_state, current_image_data, current_image_hash, last_spotify_poll
 
-    now = time.time()
-    if now - last_spotify_poll < SPOTIFY_POLL_INTERVAL:
+    with spotify_lock:
+        now = time.time()
+        if now - last_spotify_poll < SPOTIFY_POLL_INTERVAL:
+            return current_spotify_state
+
+        last_spotify_poll = now
+        try:
+            if spotify_client:
+                info = spotify_client.get_playback_info()
+
+                # Check if cover changed
+                new_cover_url = info.get("cover_url")
+                old_cover_url = current_spotify_state.get("cover_url")
+
+                if new_cover_url and new_cover_url != old_cover_url:
+                    print(f"New cover detected: {new_cover_url}")
+                    img_data, dom_color = process_image(new_cover_url)
+                    if img_data:
+                        current_image_data = img_data
+                        current_image_hash = hashlib.md5(
+                            new_cover_url.encode()).hexdigest()[:8]
+                        current_spotify_state["dominant_color"] = dom_color
+                        print(f"Image processed. Hash: {
+                            current_image_hash}, Color: {dom_color}")
+
+                info["image_hash"] = current_image_hash
+                info["dominant_color"] = current_spotify_state.get(
+                    "dominant_color", 0)
+                current_spotify_state = info
+        except Exception as e:
+            print(f"Error getting Spotify data: {e}")
+
         return current_spotify_state
-
-    last_spotify_poll = now
-    try:
-        if spotify_client:
-            info = spotify_client.get_playback_info()
-
-            # Check if cover changed
-            new_cover_url = info.get("cover_url")
-            old_cover_url = current_spotify_state.get("cover_url")
-
-            if new_cover_url and new_cover_url != old_cover_url:
-                print(f"New cover detected: {new_cover_url}")
-                img_data, dom_color = process_image(new_cover_url)
-                if img_data:
-                    current_image_data = img_data
-                    current_image_hash = hashlib.md5(
-                        new_cover_url.encode()).hexdigest()[:8]
-                    current_spotify_state["dominant_color"] = dom_color
-                    print(f"Image processed. Hash: {
-                          current_image_hash}, Color: {dom_color}")
-
-            info["image_hash"] = current_image_hash
-            info["dominant_color"] = current_spotify_state.get(
-                "dominant_color", 0)
-            current_spotify_state = info
-    except Exception as e:
-        print(f"Error getting Spotify data: {e}")
-
-    return current_spotify_state
 
 # --- Funciones de Datos ---
 
@@ -71,7 +73,8 @@ def get_spotify_data():
 def get_value(coin: str, target_date: date):
     try:
         url = f"{site}/{coin}@{target_date.strftime('%Y-%m-%d')}"
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers,
+                                timeout=10)  # Timeout añadido
         response.raise_for_status()
         avg_pattern = re.search(
             r'avg:\x1b\[0m \$(\d+\.?\d*)\x1b\[2m', response.text)
@@ -328,12 +331,17 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Warning: Could not initialize Spotify Client: {e}")
 
-    init()
+    threading.Thread(target=init, daemon=True).start()
 
     update_thread = threading.Thread(target=actualizar_diario, daemon=True)
     update_thread.start()
 
-    server = HTTPServer(("0.0.0.0", 1234), Server)
+    server = ThreadingHTTPServer(("0.0.0.0", 1234), Server)
+
+    if spotify_client:
+        print("Verificando cuenta de Spotify...")
+        get_spotify_data()
+
     print("Servidor corriendo en el puerto 1234. Presiona Ctrl+C para salir.")
 
     try:

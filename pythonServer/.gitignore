@@ -2,7 +2,6 @@
 __pycache__/
 *.pyc
 .cache
-crypto_data.db
 db.json
 .env
 spotify_test/image_u8_array.bin

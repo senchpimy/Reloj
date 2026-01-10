@@ -22,6 +22,7 @@ class SpotifyClient:
                 client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
                 redirect_uri="http://127.0.0.1:8888/callback",
                 scope=scope_list,
+                open_browser=False,
             )
         )
         self.sp = sp
