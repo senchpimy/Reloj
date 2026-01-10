@@ -29,22 +29,38 @@ class SpotifyClient:
     def get_playback_info(self):
         playback = self.sp.current_playback()
 
-        result = {"is_playing": False, "title": None,
-                  "artist": None, "cover_url": None}
+        result = {
+            "is_playing": False,
+            "title": None,
+            "artist": None,
+            "album": None,
+            "cover_url": None,
+            "shuffle_state": False,
+            "repeat_state": "off",
+            "progress_ms": 0,
+            "duration_ms": 0
+        }
 
-        if playback and playback.get("is_playing"):
-            result["is_playing"] = True
+        if playback:
+            result["is_playing"] = playback.get("is_playing", False)
+            result["shuffle_state"] = playback.get("shuffle_state", False)
+            result["repeat_state"] = playback.get("repeat_state", "off")
+            result["progress_ms"] = playback.get("progress_ms", 0)
+
             content_type = playback.get("currently_playing_type")
             track = playback.get("item")
 
             if track:
+                result["duration_ms"] = track.get("duration_ms", 0)
                 if content_type == "track":
                     result["title"] = track.get("name")
                     artists = [artist["name"]
                                for artist in track.get("artists", [])]
                     result["artist"] = ", ".join(artists) if artists else None
-                    if track.get("album") and track["album"].get("images"):
-                        result["cover_url"] = track["album"]["images"][0]["url"]
+                    if track.get("album"):
+                        result["album"] = track["album"].get("name")
+                        if track["album"].get("images"):
+                            result["cover_url"] = track["album"]["images"][0]["url"]
                 elif content_type == "episode":
                     result["title"] = track.get("name")
                     result["artist"] = track.get("show", {}).get("publisher")
@@ -100,6 +116,33 @@ class SpotifyClient:
         except SpotifyException as e:
             print(
                 f"Error al ajustar volumen (algunos dispositivos no lo soportan): {e}")
+
+    def toggle_shuffle(self, state: bool):
+        """Activa o desactiva el modo aleatorio."""
+        try:
+            self.sp.shuffle(state)
+            print(f"Shuffle set to {state}")
+        except SpotifyException as e:
+            print(f"Error setting shuffle: {e}")
+
+    def set_repeat(self, state: str):
+        """Establece el modo de repetición: 'track', 'context' o 'off'."""
+        try:
+            if state not in ['track', 'context', 'off']:
+                print(f"Invalid repeat state: {state}")
+                return
+            self.sp.repeat(state)
+            print(f"Repeat set to {state}")
+        except SpotifyException as e:
+            print(f"Error setting repeat: {e}")
+
+    def seek(self, position_ms: int):
+        """Busca una posición específica en la canción actual (en ms)."""
+        try:
+            self.sp.seek_track(position_ms)
+            print(f"Seeking to {position_ms}ms")
+        except SpotifyException as e:
+            print(f"Error seeking: {e}")
 
 
 # Ejemplo de uso (descomentar para probar):

@@ -269,6 +269,42 @@ class Server(BaseHTTPRequestHandler):
                     self.end_headers()
                     return
 
+            elif self.path == "/spotify/shuffle":
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                data = json.loads(body) if body else {}
+                state = data.get("state")
+                if isinstance(state, bool):
+                    spotify_client.toggle_shuffle(state)
+                else:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+
+            elif self.path == "/spotify/repeat":
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                data = json.loads(body) if body else {}
+                state = data.get("state")
+                if state in ['track', 'context', 'off']:
+                    spotify_client.set_repeat(state)
+                else:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+
+            elif self.path == "/spotify/seek":
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                data = json.loads(body) if body else {}
+                position_ms = data.get("position_ms")
+                if isinstance(position_ms, int) and position_ms >= 0:
+                    spotify_client.seek(position_ms)
+                else:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+
             else:
                 self.send_response(404)
                 self.end_headers()
